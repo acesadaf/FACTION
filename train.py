@@ -165,7 +165,7 @@ if __name__ == "__main__":
 
     final_dataset = []
     
-    #[Needs refactoring]for RCMNIST, skip this loop and just set final_dataset = dataset. This is because for RCMNIST, the dataset is already split into subtasks from our implementation in datasets.py so this is unnecessary, but for all other datasets this is needed.
+
     for task_i, env_i in enumerate(dataset):
         total_length = len(env_i)
         print("Total Length of domain {}: {}".format(task_i, total_length))
