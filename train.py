@@ -74,8 +74,8 @@ def log_class_sensitive_probs(data_loader, num_classes, num_sensitives):
 def get_probabilities(logits):
     return logsumexp(logits)
 
-def select_candidates(scores, budget):
-    # Sort scores in ascending order
+def select_candidates(scores, budget, alpha=1.0):
+    # Sort scores in descending order
     sorted_indices = torch.argsort(scores, descending=True)
     sorted_scores = scores[sorted_indices]
 
@@ -85,14 +85,14 @@ def select_candidates(scores, budget):
     # Initialize arrays
     candidate_indices = []
     candidate_scores = []
-
+    
     # Use scores as probabilities for Bernoulli trials
     for i in range(len(scores)):
-        trial = bernoulli.Bernoulli(sorted_scores[i]).sample().item()
+        scaled_score = min(alpha * sorted_scores[i], 1.0)
+        trial = bernoulli.Bernoulli(torch.tensor(scaled_score)).sample().item()
         if trial == 1:
             candidate_scores.append(sorted_scores[i])
             candidate_indices.append(sorted_indices[i])
-
         if len(candidate_indices) >= budget:
             break
 
@@ -377,11 +377,7 @@ if __name__ == "__main__":
 
 
 
-            
-
-            (candidate_scores_q, candidate_indices,) = active_learning.get_top_k_scorers(
-                objective, args.acquisition_batch_size, uncertainty=False,
-            )
+            candidate_scores_q, candidate_indices = select_candidates(probability_scores, args.acquisition_batch_size, alpha=1.0)            
             
             num_acquired += len(candidate_indices)
 
