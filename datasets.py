@@ -173,65 +173,7 @@ class ColoredMNIST(MultipleEnvironmentMNIST):
     def torch_xor_(self, a, b):
         return (a - b).abs()
 
-class RotatedColoredMNIST(MultipleEnvironmentMNIST):
-    ENVIRONMENTS = ['0', '15', '30', '45']
 
-    def __init__(self, root, test_envs, hparams=None):
-        super(RotatedColoredMNIST, self).__init__(root, [0, 15, 30, 45],
-                                           self.rotate_dataset, (2, 32, 32,), 2)
-
-    def rotate_dataset(self, images, labels, angle):
-        rotation = transforms.Compose([
-            transforms.ToPILImage(),
-            transforms.Lambda(lambda x: rotate(x, angle, fill=(0,),
-                interpolation=torchvision.transforms.InterpolationMode.BILINEAR)),
-            transforms.ToTensor()])
-
-        x = torch.zeros(len(images), 1, 32, 32)
-
-        environement_color = -1
-        if angle == 0:
-            environement_color = 0.9
-        elif angle == 15:
-            environement_color = 0.8
-        elif angle == 30:
-            environement_color = 0.7
-        elif angle == 45:
-            environement_color = 0.6
-
-
-
-        for i in range(len(images)):
-            x[i] = rotation(images[i])
-
-        # Assign a binary label based on the digit
-        labels = (labels < 5).float()
-
-        # # Flip label with probability 0.25
-        # labels = self.torch_xor_(labels, self.torch_bernoulli_(0.25, len(labels)))
-
-        # Assign a color based on the label; flip the color with probability e
-        colors = self.torch_xor_(labels, self.torch_bernoulli_(environement_color, len(labels)))
-
-        x=torch.squeeze(x,dim=1)
-        x = torch.stack([x, x], dim=1)
-
-        # Apply the color to the image by zeroing out the other color channel
-        x[torch.tensor(range(len(x))), (1 - colors).long(), :, :] *= 0
-
-        x =  x.float()  # .div_(255.0)
-        y = labels.view(-1).long()
-
-
-
-        return TensorDataset(x, y, colors)
-
-
-    def torch_bernoulli_(self, p, size):
-        return (torch.rand(size) < p).float()
-
-    def torch_xor_(self, a, b):
-        return (a - b).abs()
 
 class RotatedMNIST(MultipleEnvironmentMNIST):
     ENVIRONMENTS = ['0', '15', '30', '45']
@@ -256,29 +198,59 @@ class RotatedMNIST(MultipleEnvironmentMNIST):
         return TensorDataset(x, y)
 
 
-
-
 class RotatedColoredMNIST(MultipleEnvironmentMNIST):
-    ENVIRONMENTS = ['0', '15', '30', '45']
 
-    def __init__(self, root, test_envs, hparams=None):
-        super(RotatedColoredMNIST, self).__init__(root, [0, 15, 30, 45],
-                                           self.rotate_color_dataset, (1, 28, 28,), 10)
+    def __init__(self, root, test_envs, hparams):
+        self.sample_pos = True
+        self.ENVIRONMENTS = [0, 15, 30, 45]
+        self.test_env = test_envs
 
-    def rotate_color_dataset(self, images, labels, angle):
+        super(RotatedColoredMNIST, self).__init__(root, self.ENVIRONMENTS, self.rotate_dataset, (1, 28, 28,), 2)
+
+    def rotate_dataset(self, images, labels, angle):
+        angles = [0, 15, 30, 45]
+
+        images = images.unsqueeze(1)
+
         rotation = transforms.Compose([
             transforms.ToPILImage(),
-            transforms.Lambda(lambda x: rotate(x, angle, fill=(0,),
-                interpolation=torchvision.transforms.InterpolationMode.BILINEAR)),
-            transforms.ToTensor()])
+            transforms.Resize((32, 32)),
+            transforms.Lambda(lambda x: rotate(x, angle, fill=(0,))),
+            transforms.ToTensor()
+        ])
+        x = torch.zeros(len(images), 1, 32, 32)
 
-        x = torch.zeros(len(images), 1, 28, 28)
+        # Set environment-specific color-flipping probability
+        environement_color = -1
+        if angle == 0:
+            environement_color = 0.9
+        elif angle == 15:
+            environement_color = 0.8
+        elif angle == 30:
+            environement_color = 0.7
+        elif angle == 45:
+            environement_color = 0.6
+
         for i in range(len(images)):
             x[i] = rotation(images[i])
 
-        y = labels.view(-1)
+        labels = (labels < 5).float()
+        colors = self.torch_xor_(labels, self.torch_bernoulli_(environement_color, len(labels)))
 
-        return TensorDataset(x, y)
+        x = torch.squeeze(x, dim=1)
+        x = torch.stack([x, x, x], dim=1)
+        x[torch.arange(len(x)), (1 - colors).long(), :, :] *= 0
+        x = x.float()
+
+        y = labels.view(-1).long()
+        return TensorDataset(x, y, colors)
+
+    def torch_bernoulli_(self, p, size):
+        return (torch.rand(size) < p).float()
+
+    def torch_xor_(self, a, b):
+        return (a - b).abs()
+
 
 
 class SensitiveImageFolder(ImageFolder):
